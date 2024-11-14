@@ -1,6 +1,5 @@
 - name: deploy app
-  hosts: isu_a
-  become_user: isucon # isuconユーザーとして実行する
+  hosts: isu_g1
   tasks:
   # - name: Ping my hosts
   #   ansible.builtin.ping:
@@ -14,22 +13,31 @@
   # - ansible.builtin.shell:
   #     cmd: mv /tmp/webapp/ ~/webapp/
   - name: copy app
+    # ansible.builtin.copy は遅いので synchronize 使う
     ansible.builtin.synchronize:
       src: ./webapp/
       dest: ~/webapp/
-- name: deploy systemd
-  hosts: isu_a
+- name: deploy
+  hosts: isu_g1
   become: yes # sudo で実行する
   tasks:
-  - name: copy service
+  - name: deploy systemd service
     ansible.builtin.synchronize:
       src: ./systemd/system/isuports.service
       dest: /etc/systemd/system/isuports.service
 - name: restart
-  hosts: isu_a
+  hosts: isu_g1
   become: yes # sudo で実行する
   tasks:
   - name: restart app
     ansible.builtin.systemd_service:
       state: restarted
       name: isuports
+  - name: restart nginx
+    ansible.builtin.systemd_service:
+      state: restarted
+      name: nginx
+  - name: restart mysql
+    ansible.builtin.systemd_service:
+      state: restarted
+      name: mysql

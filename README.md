@@ -26,5 +26,5 @@ ansible isu_a -m ping -i inventory.ini
 サーバーホストへのplaybook
 
 ```bash
-ansible-playbook -i inventory.ini playbook_isu_a.yaml
+ansible-playbook -i inventory.ini playbook.yaml
 ```
