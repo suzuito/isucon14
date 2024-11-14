@@ -19,8 +19,8 @@ brew install ansible
 サーバーホストへの接続確認
 
 ```bash
-# isu_a はサーバーのグループ
-ansible isu_a -m ping -i inventory.ini
+# isu_g1 はサーバーのグループ
+ansible isu_g1 -m ping -i inventory.ini
 ```
 
 サーバーホストへのplaybook
