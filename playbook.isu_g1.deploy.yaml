@@ -1,4 +1,4 @@
-- name: deploy app
+- name: deploy
   hosts: isu_g1
   tasks:
   # - name: Ping my hosts
@@ -17,15 +17,17 @@
     ansible.builtin.synchronize:
       src: ./webapp/
       dest: ~/webapp/
-- name: deploy
+- name: deploy as sudo
   hosts: isu_g1
   become: yes # sudo で実行する
   tasks:
-  - name: deploy systemd service
-    ansible.builtin.synchronize:
+  - ansible.builtin.synchronize:
       src: ./systemd/system/isuports.service
       dest: /etc/systemd/system/isuports.service
-- name: restart
+  - ansible.builtin.synchronize:
+      src: ./etc/mysql/mysql.conf.d/mysqld.conf
+      dest: /etc/mysql/mysql.conf.d/mysqld.conf
+- name: restart as sudo
   hosts: isu_g1
   become: yes # sudo で実行する
   tasks:
