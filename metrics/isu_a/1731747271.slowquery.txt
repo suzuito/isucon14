@@ -1,0 +1,82 @@
+
+# 2.3s user time, 10ms system time, 29.12M rss, 32.24M vsz
+# Current date: Sat Nov 16 08:54:36 2024
+# Hostname: ip-172-31-43-46
+# Files: /var/log/mysql/mysql-slow.log
+# Overall: 36.14k total, 14 unique, 446.17 QPS, 2.85x concurrency ________
+# Time range: 2024-11-16T05:30:27 to 2024-11-16T05:31:48
+# Attribute          total     min     max     avg     95%  stddev  median
+# ============     ======= ======= ======= ======= ======= ======= =======
+# Exec time           231s     1us      2s     6ms    24ms    23ms    66us
+# Lock time            55s       0    39ms     2ms    12ms     4ms       0
+# Rows sent        120.37k       0     199    3.41    0.99   18.89       0
+# Rows examine      29.86M       0   3.08M  866.46    0.99  16.88k       0
+# Query size         1.43M      27     165   41.38  136.99   24.75   31.70
+
+# Profile
+# Rank Query ID                      Response time  Calls R/Call V/M   Ite
+# ==== ============================= ============== ===== ====== ===== ===
+#    1 0x94A9E43DFAAFA029A1FC19A5... 114.0320 49.4%  8078 0.0141  0.00 REPLACE id_generator
+#    2 0x676347F321DB8BC7FCB05D49... 107.5833 46.6%  1446 0.0744  0.05 SELECT visit_history
+# MISC 0xMISC                          9.2232  4.0% 26616 0.0003   0.0 <12 ITEMS>
+
+# Query 1: 110.66 QPS, 1.56x concurrency, ID 0x94A9E43DFAAFA029A1FC19A5563AD0F5 at byte 7456394
+# This item is included in the report because it matches --limit.
+# Scores: V/M = 0.00
+# Time range: 2024-11-16T05:30:30 to 2024-11-16T05:31:43
+# Attribute    pct   total     min     max     avg     95%  stddev  median
+# ============ === ======= ======= ======= ======= ======= ======= =======
+# Count         22    8078
+# Exec time     49    114s     2ms    47ms    14ms    27ms     7ms    13ms
+# Lock time     99     55s       0    39ms     7ms    19ms     6ms     6ms
+# Rows sent      0       0       0       0       0       0       0       0
+# Rows examine   0       0       0       0       0       0       0       0
+# Query size    24 354.99k      45      45      45      45       0      45
+# String:
+# Databases    isuports
+# Hosts        localhost
+# Users        isucon
+# Query_time distribution
+#   1us
+#  10us
+# 100us
+#   1ms  ##############################
+#  10ms  ################################################################
+# 100ms
+#    1s
+#  10s+
+# Tables
+#    SHOW TABLE STATUS FROM `isuports` LIKE 'id_generator'\G
+#    SHOW CREATE TABLE `isuports`.`id_generator`\G
+REPLACE INTO id_generator (stub) VALUES ('a')\G
+
+# Query 2: 18.54 QPS, 1.38x concurrency, ID 0x676347F321DB8BC7FCB05D4948FC2248 at byte 5992062
+# This item is included in the report because it matches --limit.
+# Scores: V/M = 0.05
+# Time range: 2024-11-16T05:30:30 to 2024-11-16T05:31:48
+# Attribute    pct   total     min     max     avg     95%  stddev  median
+# ============ === ======= ======= ======= ======= ======= ======= =======
+# Count          4    1446
+# Exec time     46    108s   149us   481ms    74ms   189ms    59ms    59ms
+# Lock time      0     3ms       0   236us     1us     1us     6us     1us
+# Rows sent     97 117.44k       0     199   83.16  174.84   50.25   72.65
+# Rows examine  89  26.78M       0  49.19k  18.97k  40.32k  12.27k  14.47k
+# Query size    13 201.81k     141     144  142.91  136.99    0.69  136.99
+# String:
+# Databases    isuports
+# Hosts        localhost
+# Users        isucon
+# Query_time distribution
+#   1us
+#  10us
+# 100us  ##
+#   1ms  #######
+#  10ms  ################################################################
+# 100ms  ###########################
+#    1s
+#  10s+
+# Tables
+#    SHOW TABLE STATUS FROM `isuports` LIKE 'visit_history'\G
+#    SHOW CREATE TABLE `isuports`.`visit_history`\G
+# EXPLAIN /*!50100 PARTITIONS*/
+SELECT player_id, MIN(created_at) AS min_created_at FROM visit_history WHERE tenant_id = 60 AND competition_id = '1a9c3f914' GROUP BY player_id\G

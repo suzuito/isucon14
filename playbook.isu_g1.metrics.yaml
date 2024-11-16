@@ -1,6 +1,14 @@
 - name: deploy
   hosts: isu_g1
+  become: yes # sudo で実行する
   tasks:
   - ansible.builtin.shell:
-      src: remote.mk
-      dest: ~/Makefile
+      cmd: pt-query-digest /var/log/mysql/mysql-slow.log > {{dt}}.slowquery.txt
+  - ansible.builtin.shell:
+      cmd: cat /var/log/nginx/access.log | alp ltsv --output='all' -m '/api/player/player/[0-9a-z]+,/api/player/competition/[0-9a-z]+/ranking,/api/organizer/competition/[0-9a-z]+/score,/api/organizer/competition/[0-9a-z]+/finish,/api/organizer/player/[0-9a-z]+/disqualified' --sort='avg' > {{dt}}.api.txt
+  - ansible.builtin.fetch:
+      src: "{{dt}}.slowquery.txt"
+      dest: metrics/
+  - ansible.builtin.fetch:
+      src: "{{dt}}.api.txt"
+      dest: metrics/
