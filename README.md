@@ -29,7 +29,7 @@ ansible isu_g1 -m ping -i inventory.ini
 
 ```bash
 # setup
-ansible-playbook -i inventory.ini playbook.isu_g1.setup.yaml
 # deploy app(source code, nginx, mysql settings) for isu_g1
 ansible-playbook -i inventory.ini playbook.isu_g1.deploy.yaml
+ansible-playbook -i inventory.ini playbook.isu_g1.restart.yaml
 ```

@@ -1,0 +1,26 @@
+- name: restart as sudo
+  hosts: isu_g1
+  become: yes # sudo で実行する
+  tasks:
+  - name: restart app
+    ansible.builtin.systemd_service:
+      state: restarted
+      name: isuports
+  # nginx
+  - ansible.builtin.systemd_service:
+      state: stopped
+      name: nginx
+  - ansible.builtin.shell:
+      cmd: rm /var/log/nginx/access.log
+  - ansible.builtin.systemd_service:
+      state: started
+      name: nginx
+  # mysql
+  - ansible.builtin.systemd_service:
+      state: stopped
+      name: mysql
+  - ansible.builtin.shell:
+      cmd: rm /var/log/mysql/mysql-slow.log
+  - ansible.builtin.systemd_service:
+      state: restarted
+      name: mysql

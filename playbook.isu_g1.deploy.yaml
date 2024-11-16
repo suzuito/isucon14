@@ -25,21 +25,8 @@
       src: ./systemd/system/isuports.service
       dest: /etc/systemd/system/isuports.service
   - ansible.builtin.synchronize:
-      src: ./etc/mysql/mysql.conf.d/mysqld.conf
-      dest: /etc/mysql/mysql.conf.d/mysqld.conf
-- name: restart as sudo
-  hosts: isu_g1
-  become: yes # sudo で実行する
-  tasks:
-  - name: restart app
-    ansible.builtin.systemd_service:
-      state: restarted
-      name: isuports
-  - name: restart nginx
-    ansible.builtin.systemd_service:
-      state: restarted
-      name: nginx
-  - name: restart mysql
-    ansible.builtin.systemd_service:
-      state: restarted
-      name: mysql
+      src: ./etc/mysql/mysql.conf.d/mysqld.cnf
+      dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+  - ansible.builtin.synchronize:
+      src: ./etc/nginx/nginx.conf
+      dest: /etc/nginx/nginx.conf

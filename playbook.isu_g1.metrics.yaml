@@ -1,6 +1,6 @@
 - name: deploy
   hosts: isu_g1
   tasks:
-  - ansible.builtin.synchronize:
+  - ansible.builtin.shell:
       src: remote.mk
       dest: ~/Makefile
