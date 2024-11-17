@@ -10,6 +10,7 @@ Type=simple
 User=isucon
 Group=isucon
 WorkingDirectory=/home/isucon/webapp
+# TODO eff=2 remove docker-compose
 ExecStart=docker compose -f docker-compose-go.yml up --build
 ExecStop=docker compose -f docker-compose-go.yml down
 Restart=always

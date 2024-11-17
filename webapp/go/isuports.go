@@ -31,6 +31,7 @@ import (
 	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
 )
 
@@ -560,6 +561,7 @@ type VisitHistorySummaryRow struct {
 
 // 大会ごとの課金レポートを計算する
 func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID int64, competitonID string) (*BillingReport, error) {
+	// TODO 効果2 N+1
 	comp, err := retrieveCompetition(ctx, tenantDB, competitonID)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieveCompetition: %w", err)
@@ -679,17 +681,34 @@ func tenantsBillingHandler(c echo.Context) error {
 	//   を合計したものを
 	// テナントの課金とする
 	ts := []TenantRow{}
+	// TODO 効果? 全権取る必要はない。beforeIDよりも小さいものだけでよき
 	if err := adminDB.SelectContext(ctx, &ts, "SELECT * FROM tenant ORDER BY id DESC"); err != nil {
 		return fmt.Errorf("error Select tenant: %w", err)
 	}
 	tenantBillings := make([]TenantWithBilling, 0, len(ts))
+	// TODO 効果3 並列処理化する
 	for _, t := range ts {
 		if beforeID != 0 && beforeID <= t.ID {
 			continue
 		}
 		err := func(t TenantRow) error {
+			// TOOD remove tracer
 			tracer := otel.Tracer("echo-server")
 			ctx, span := tracer.Start(ctx, "foo001")
+			span.SetAttributes(
+				attribute.KeyValue{
+					Key:   "tenant_id",
+					Value: attribute.Int64Value(t.ID),
+				},
+				attribute.KeyValue{
+					Key:   "tenant_name",
+					Value: attribute.StringValue(t.Name),
+				},
+				attribute.KeyValue{
+					Key:   "tenant_display_name",
+					Value: attribute.StringValue(t.DisplayName),
+				},
+			)
 			defer span.End()
 
 			tb := TenantWithBilling{
