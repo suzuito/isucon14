@@ -1,14 +1,14 @@
-FROM golang:1.18.4-bullseye
+FROM golang:1.23.3-bullseye
 
 WORKDIR /tmp
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
-  apt-get -y upgrade && \
-  apt-get install -y wget gcc g++ make sqlite3 && \
-  wget -q https://dev.mysql.com/get/mysql-apt-config_0.8.22-1_all.deb && \
-  apt-get -y install ./mysql-apt-config_*_all.deb && \
-  apt-get -y update && \
-  apt-get -y install mysql-client
+RUN apt-get update
+RUN apt-get -y upgrade
+RUN apt-get install -y wget gcc g++ make sqlite3
+RUN wget -q https://dev.mysql.com/get/mysql-apt-config_0.8.33-1_all.deb
+RUN apt-get -y install ./mysql-apt-config_*_all.deb
+RUN apt-get -y update
+RUN apt-get -y install default-mysql-client
 
 RUN useradd --uid=1001 --create-home isucon
 USER isucon
