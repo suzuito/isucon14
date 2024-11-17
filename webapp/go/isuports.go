@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	texporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
 	"github.com/jmoiron/sqlx"
@@ -27,6 +28,9 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 const (
@@ -133,9 +137,24 @@ func SetCacheControlPrivate(next echo.HandlerFunc) echo.HandlerFunc {
 
 // Run は cmd/isuports/main.go から呼ばれるエントリーポイントです
 func Run() {
+	ctx := context.Background()
+
+	exporter, err1 := texporter.New(texporter.WithProjectID("isucon14"))
+	if err1 != nil {
+		panic(fmt.Errorf("cannot texporter.New: %w", err1))
+	}
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
+	defer tp.Shutdown(ctx)
+
 	e := echo.New()
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
+
+	e.Use(otelecho.Middleware("hoge"))
 
 	var (
 		sqlLogger io.Closer
@@ -667,6 +686,10 @@ func tenantsBillingHandler(c echo.Context) error {
 			continue
 		}
 		err := func(t TenantRow) error {
+			tracer := otel.Tracer("echo-server")
+			_, span := tracer.Start(c.Request().Context(), "foo001")
+			defer span.End()
+
 			tb := TenantWithBilling{
 				ID:          strconv.FormatInt(t.ID, 10),
 				Name:        t.Name,
