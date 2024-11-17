@@ -73,7 +73,8 @@ func connectAdminDB() (*sqlx.DB, error) {
 	config.DBName = getEnv("ISUCON_DB_NAME", "isuports")
 	config.ParseTime = true
 	dsn := config.FormatDSN()
-	return sqlx.Open("mysql", dsn)
+	// return sqlx.Open("mysql", dsn)
+	return otelsqlx.Open("mysql", dsn)
 }
 
 // テナントDBのパスを返す
@@ -432,6 +433,14 @@ func retrieveCompetition(ctx context.Context, tenantDB dbOrTx, id string) (*Comp
 	return &c, nil
 }
 
+// func retrieveCompetitions(ctx context.Context, tenantDB dbOrTx, ids []string) ([]*CompetitionRow, error) {
+// 	var c []*CompetitionRow
+// 	if err := tenantDB.SelectContext(ctx, &c, "SELECT * FROM competition WHERE id IN (?)", ids); err != nil {
+// 		return nil, fmt.Errorf("error Select competition: id=(%v), %w", ids, err)
+// 	}
+// 	return c, nil
+// }
+
 type PlayerScoreRow struct {
 	TenantID      int64  `db:"tenant_id"`
 	ID            string `db:"id"`
@@ -560,13 +569,7 @@ type VisitHistorySummaryRow struct {
 }
 
 // 大会ごとの課金レポートを計算する
-func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID int64, competitonID string) (*BillingReport, error) {
-	// TODO 効果2 N+1
-	comp, err := retrieveCompetition(ctx, tenantDB, competitonID)
-	if err != nil {
-		return nil, fmt.Errorf("error retrieveCompetition: %w", err)
-	}
-
+func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID int64, comp *CompetitionRow) (*BillingReport, error) {
 	// ランキングにアクセスした参加者のIDを取得する
 	vhs := []VisitHistorySummaryRow{}
 	if err := adminDB.SelectContext(
@@ -602,7 +605,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 		"SELECT DISTINCT(player_id) FROM player_score WHERE tenant_id = ? AND competition_id = ?",
 		tenantID, comp.ID,
 	); err != nil && err != sql.ErrNoRows {
-		return nil, fmt.Errorf("error Select count player_score: tenantID=%d, competitionID=%s, %w", tenantID, competitonID, err)
+		return nil, fmt.Errorf("error Select count player_score: tenantID=%d, competitionID=%s, %w", tenantID, comp.ID, err)
 	}
 	for _, pid := range scoredPlayerIDs {
 		// スコアが登録されている参加者
@@ -686,12 +689,16 @@ func tenantsBillingHandler(c echo.Context) error {
 		return fmt.Errorf("error Select tenant: %w", err)
 	}
 	tenantBillings := make([]TenantWithBilling, 0, len(ts))
+	// tenantBillingsAsMapSortedKeys := []int64{}
+	// tenantBillingsAsMap := make(map[int64]TenantWithBilling)
 	// TODO 効果3 並列処理化する
 	for _, t := range ts {
 		if beforeID != 0 && beforeID <= t.ID {
 			continue
 		}
-		err := func(t TenantRow) error {
+		// tenantBillingsAsMapSortedKeys = append(tenantBillingsAsMapSortedKeys, t.ID)
+		tt := t
+		err := func(t *TenantRow) error {
 			// TOOD remove tracer
 			tracer := otel.Tracer("echo-server")
 			ctx, span := tracer.Start(ctx, "foo001")
@@ -731,7 +738,7 @@ func tenantsBillingHandler(c echo.Context) error {
 				return fmt.Errorf("failed to Select competition: %w", err)
 			}
 			for _, comp := range cs {
-				report, err := billingReportByCompetition(ctx, tenantDB, t.ID, comp.ID)
+				report, err := billingReportByCompetition(ctx, tenantDB, t.ID, &comp)
 				if err != nil {
 					return fmt.Errorf("failed to billingReportByCompetition: %w", err)
 				}
@@ -739,7 +746,7 @@ func tenantsBillingHandler(c echo.Context) error {
 			}
 			tenantBillings = append(tenantBillings, tb)
 			return nil
-		}(t)
+		}(&tt)
 		if err != nil {
 			return err
 		}
@@ -1204,7 +1211,7 @@ func billingHandler(c echo.Context) error {
 	}
 	tbrs := make([]BillingReport, 0, len(cs))
 	for _, comp := range cs {
-		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, comp.ID)
+		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, &comp)
 		if err != nil {
 			return fmt.Errorf("error billingReportByCompetition: %w", err)
 		}
