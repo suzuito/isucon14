@@ -28,6 +28,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -83,7 +84,8 @@ func tenantDBPath(id int64) string {
 // テナントDBに接続する
 func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	p := tenantDBPath(id)
-	db, err := sqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
+	// db, err := sqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
+	db, err := otelsqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open tenant DB: %w", err)
 	}
@@ -651,7 +653,7 @@ func tenantsBillingHandler(c echo.Context) error {
 		)
 	}
 
-	ctx := context.Background()
+	ctx := c.Request().Context()
 	if v, err := parseViewer(c); err != nil {
 		return err
 	} else if v.role != RoleAdmin {
@@ -687,7 +689,7 @@ func tenantsBillingHandler(c echo.Context) error {
 		}
 		err := func(t TenantRow) error {
 			tracer := otel.Tracer("echo-server")
-			_, span := tracer.Start(c.Request().Context(), "foo001")
+			ctx, span := tracer.Start(ctx, "foo001")
 			defer span.End()
 
 			tb := TenantWithBilling{
