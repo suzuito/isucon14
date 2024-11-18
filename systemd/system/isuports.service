@@ -11,6 +11,13 @@ User=isucon
 Group=isucon
 WorkingDirectory=/home/isucon/webapp
 # TODO eff=2 remove docker-compose
-ExecStart=docker compose -f docker-compose-go.yml up --build
-ExecStop=docker compose -f docker-compose-go.yml down
+# ExecStart=docker compose -f docker-compose-go.yml up --build
+ExecStart=/home/isucon/webapp/go/a.out
+# ExecStop=docker compose -f docker-compose-go.yml down
 Restart=always
+Environment="ISUCON_DB_HOST=127.0.0.1"
+Environment="ISUCON_DB_PORT=3306"
+Environment="ISUCON_DB_USER=isucon"
+Environment="ISUCON_DB_PASSWORD=isucon"
+Environment="ISUCON_DB_NAME=isuports"
+Environment="GOOGLE_APPLICATION_CREDENTIALS=/home/isucon/webapp/isucon14-87654e6433dc.json"

@@ -17,6 +17,11 @@
     ansible.builtin.synchronize:
       src: ./webapp/
       dest: ~/webapp/
+  - name: copy app bin
+    # ansible.builtin.copy は遅いので synchronize 使う
+    ansible.builtin.synchronize:
+      src: ./webapp/go/a.out
+      dest: ~/webapp/go/a.out
 - name: deploy as sudo
   hosts: isu_g1
   become: yes # sudo で実行する
