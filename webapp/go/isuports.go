@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	texporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
@@ -33,6 +35,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -676,6 +679,8 @@ func tenantsBillingHandler(c echo.Context) error {
 				fmt.Sprintf("failed to parse query parameter 'before': %s", err.Error()),
 			)
 		}
+	} else {
+		beforeID = math.MaxInt64
 	}
 	// テナントごとに
 	//   大会ごとに
@@ -685,74 +690,89 @@ func tenantsBillingHandler(c echo.Context) error {
 	// テナントの課金とする
 	ts := []TenantRow{}
 	// TODO 効果? 全権取る必要はない。beforeIDよりも小さいものだけでよき
-	if err := adminDB.SelectContext(ctx, &ts, "SELECT * FROM tenant ORDER BY id DESC"); err != nil {
+	if err := adminDB.SelectContext(
+		ctx,
+		&ts,
+		"SELECT * FROM tenant WHERE id < ? ORDER BY id DESC LIMIT 10",
+		beforeID,
+	); err != nil {
 		return fmt.Errorf("error Select tenant: %w", err)
 	}
 	tenantBillings := make([]TenantWithBilling, 0, len(ts))
-	// tenantBillingsAsMapSortedKeys := []int64{}
-	// tenantBillingsAsMap := make(map[int64]TenantWithBilling)
+	tenantBillingsAsMapSortedKeys := []string{}
+	tenantBillingsAsMap := make(map[string]TenantWithBilling)
+	tenantBillingsAsMapLocker := sync.Mutex{}
+	wg := errgroup.Group{}
 	// TODO 効果3 並列処理化する
 	for _, t := range ts {
-		if beforeID != 0 && beforeID <= t.ID {
-			continue
-		}
-		// tenantBillingsAsMapSortedKeys = append(tenantBillingsAsMapSortedKeys, t.ID)
+		// if beforeID != 0 && beforeID <= t.ID {
+		// 	continue
+		// }
+		tenantBillingsAsMapSortedKeys = append(tenantBillingsAsMapSortedKeys, strconv.FormatInt(t.ID, 10))
 		tt := t
-		err := func(t *TenantRow) error {
-			// TOOD remove tracer
-			tracer := otel.Tracer("echo-server")
-			ctx, span := tracer.Start(ctx, "foo001")
-			span.SetAttributes(
-				attribute.KeyValue{
-					Key:   "tenant_id",
-					Value: attribute.Int64Value(t.ID),
-				},
-				attribute.KeyValue{
-					Key:   "tenant_name",
-					Value: attribute.StringValue(t.Name),
-				},
-				attribute.KeyValue{
-					Key:   "tenant_display_name",
-					Value: attribute.StringValue(t.DisplayName),
-				},
-			)
-			defer span.End()
+		wg.Go(func() error {
+			return func(t *TenantRow) error {
+				// TOOD remove tracer
+				tracer := otel.Tracer("echo-server")
+				ctx, span := tracer.Start(ctx, "foo001")
+				span.SetAttributes(
+					attribute.KeyValue{
+						Key:   "tenant_id",
+						Value: attribute.Int64Value(t.ID),
+					},
+					attribute.KeyValue{
+						Key:   "tenant_name",
+						Value: attribute.StringValue(t.Name),
+					},
+					attribute.KeyValue{
+						Key:   "tenant_display_name",
+						Value: attribute.StringValue(t.DisplayName),
+					},
+				)
+				defer span.End()
 
-			tb := TenantWithBilling{
-				ID:          strconv.FormatInt(t.ID, 10),
-				Name:        t.Name,
-				DisplayName: t.DisplayName,
-			}
-			tenantDB, err := connectToTenantDB(t.ID)
-			if err != nil {
-				return fmt.Errorf("failed to connectToTenantDB: %w", err)
-			}
-			defer tenantDB.Close()
-			cs := []CompetitionRow{}
-			if err := tenantDB.SelectContext(
-				ctx,
-				&cs,
-				"SELECT * FROM competition WHERE tenant_id=?",
-				t.ID,
-			); err != nil {
-				return fmt.Errorf("failed to Select competition: %w", err)
-			}
-			for _, comp := range cs {
-				report, err := billingReportByCompetition(ctx, tenantDB, t.ID, &comp)
-				if err != nil {
-					return fmt.Errorf("failed to billingReportByCompetition: %w", err)
+				tb := TenantWithBilling{
+					ID:          strconv.FormatInt(t.ID, 10),
+					Name:        t.Name,
+					DisplayName: t.DisplayName,
 				}
-				tb.BillingYen += report.BillingYen
-			}
-			tenantBillings = append(tenantBillings, tb)
-			return nil
-		}(&tt)
-		if err != nil {
-			return err
-		}
-		if len(tenantBillings) >= 10 {
-			break
-		}
+				tenantDB, err := connectToTenantDB(t.ID)
+				if err != nil {
+					return fmt.Errorf("failed to connectToTenantDB: %w", err)
+				}
+				defer tenantDB.Close()
+				cs := []CompetitionRow{}
+				if err := tenantDB.SelectContext(
+					ctx,
+					&cs,
+					"SELECT * FROM competition WHERE tenant_id=?",
+					t.ID,
+				); err != nil {
+					return fmt.Errorf("failed to Select competition: %w", err)
+				}
+				for _, comp := range cs {
+					report, err := billingReportByCompetition(ctx, tenantDB, t.ID, &comp)
+					if err != nil {
+						return fmt.Errorf("failed to billingReportByCompetition: %w", err)
+					}
+					tb.BillingYen += report.BillingYen
+				}
+				// tenantBillings = append(tenantBillings, tb)
+				tenantBillingsAsMapLocker.Lock()
+				defer tenantBillingsAsMapLocker.Unlock()
+				tenantBillingsAsMap[tb.ID] = tb
+				return nil
+			}(&tt)
+		})
+		// if i >= 10 {
+		// 	break
+		// }
+	}
+	if err := wg.Wait(); err != nil {
+		return err
+	}
+	for _, k := range tenantBillingsAsMapSortedKeys {
+		tenantBillings = append(tenantBillings, tenantBillingsAsMap[k])
 	}
 	return c.JSON(http.StatusOK, SuccessResult{
 		Status: true,
