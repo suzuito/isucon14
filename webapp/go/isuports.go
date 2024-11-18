@@ -491,6 +491,26 @@ func retrievePlayer(ctx context.Context, tenantDB dbOrTx, id string) (*PlayerRow
 	return &p, nil
 }
 
+func retrievePlayers(ctx context.Context, tenantDB *sqlx.DB, ids []string) ([]*PlayerRow, error) {
+	var p []*PlayerRow
+	if err := tenantDB.SelectContext(ctx, &p, "SELECT * FROM player WHERE id IN (?)", ids); err != nil {
+		return nil, fmt.Errorf("error Select player: id=%v, %w", ids, err)
+	}
+	return p, nil
+}
+
+func retrievePlayersMap(ctx context.Context, tenantDB *sqlx.DB, ids []string) (map[string]*PlayerRow, error) {
+	players, err := retrievePlayers(ctx, tenantDB, ids)
+	if err != nil {
+		return nil, fmt.Errorf("error retrievePlayers: %w", err)
+	}
+	m := map[string]*PlayerRow{}
+	for _, p := range players {
+		m[p.ID] = p
+	}
+	return m, nil
+}
+
 // 参加者を認可する
 // 参加者向けAPIで呼ばれる
 func authorizePlayer(ctx context.Context, tenantDB dbOrTx, id string) error {
@@ -1612,17 +1632,32 @@ func competitionRankingHandler(c echo.Context) error {
 			continue
 		}
 		scoredPlayerSet[ps.PlayerID] = struct{}{}
-		p, err := retrievePlayer(ctx, tenantDB, ps.PlayerID)
-		if err != nil {
-			return fmt.Errorf("error retrievePlayer: %w", err)
-		}
+		// p, err := retrievePlayer(ctx, tenantDB, ps.PlayerID)
+		// if err != nil {
+		// 	return fmt.Errorf("error retrievePlayer: %w", err)
+		// }
 		ranks = append(ranks, CompetitionRank{
-			Score:             ps.Score,
-			PlayerID:          p.ID,
-			PlayerDisplayName: p.DisplayName,
-			RowNum:            ps.RowNum,
+			Score:    ps.Score,
+			PlayerID: ps.ID,
+			// PlayerDisplayName: p.DisplayName,
+			RowNum: ps.RowNum,
 		})
 	}
+
+	playerIDs := []string{}
+	for id := range scoredPlayerSet {
+		playerIDs = append(playerIDs, id)
+	}
+	players, err := retrievePlayersMap(ctx, tenantDB, playerIDs)
+	if err != nil {
+		return fmt.Errorf("error retrievePlayers: %w", err)
+	}
+
+	for i, rank := range ranks {
+		player := players[rank.PlayerID]
+		ranks[i].PlayerDisplayName = player.DisplayName
+	}
+
 	sort.Slice(ranks, func(i, j int) bool {
 		if ranks[i].Score == ranks[j].Score {
 			return ranks[i].RowNum < ranks[j].RowNum
