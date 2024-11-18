@@ -29,10 +29,7 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
-	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/sync/errgroup"
 )
@@ -75,9 +72,9 @@ func connectAdminDB() (*sqlx.DB, error) {
 	config.DBName = getEnv("ISUCON_DB_NAME", "isuports")
 	config.ParseTime = true
 	dsn := config.FormatDSN()
-	// TODO remove trace infos
-	// return sqlx.Open("mysql", dsn)
-	return otelsqlx.Open("mysql", dsn)
+	// TODO trace infos
+	return sqlx.Open("mysql", dsn)
+	// return otelsqlx.Open("mysql", dsn)
 }
 
 // テナントDBのパスを返す
@@ -89,9 +86,9 @@ func tenantDBPath(id int64) string {
 // テナントDBに接続する
 func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	p := tenantDBPath(id)
-	// TODO remove trace infos
-	// db, err := sqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
-	db, err := otelsqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
+	// TODO trace infos
+	db, err := sqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
+	// db, err := otelsqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open tenant DB: %w", err)
 	}
@@ -249,8 +246,8 @@ func Run() {
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
 
-	// TODO remove trace infos
-	e.Use(otelecho.Middleware("hoge"))
+	// TODO trace infos
+	// e.Use(otelecho.Middleware("hoge"))
 
 	var (
 		sqlLogger io.Closer
@@ -807,23 +804,23 @@ func tenantsBillingHandler(c echo.Context) error {
 		wg.Go(func() error {
 			return func(t *TenantRow) error {
 				// TOOD remove tracer
-				tracer := otel.Tracer("echo-server")
-				ctx, span := tracer.Start(ctx, "foo001")
-				span.SetAttributes(
-					attribute.KeyValue{
-						Key:   "tenant_id",
-						Value: attribute.Int64Value(t.ID),
-					},
-					attribute.KeyValue{
-						Key:   "tenant_name",
-						Value: attribute.StringValue(t.Name),
-					},
-					attribute.KeyValue{
-						Key:   "tenant_display_name",
-						Value: attribute.StringValue(t.DisplayName),
-					},
-				)
-				defer span.End()
+				// tracer := otel.Tracer("echo-server")
+				// ctx, span := tracer.Start(ctx, "foo001")
+				// span.SetAttributes(
+				// 	attribute.KeyValue{
+				// 		Key:   "tenant_id",
+				// 		Value: attribute.Int64Value(t.ID),
+				// 	},
+				// 	attribute.KeyValue{
+				// 		Key:   "tenant_name",
+				// 		Value: attribute.StringValue(t.Name),
+				// 	},
+				// 	attribute.KeyValue{
+				// 		Key:   "tenant_display_name",
+				// 		Value: attribute.StringValue(t.DisplayName),
+				// 	},
+				// )
+				// defer span.End()
 
 				tb := TenantWithBilling{
 					ID:          strconv.FormatInt(t.ID, 10),
