@@ -436,14 +436,6 @@ func retrieveCompetition(ctx context.Context, tenantDB dbOrTx, id string) (*Comp
 	return &c, nil
 }
 
-// func retrieveCompetitions(ctx context.Context, tenantDB dbOrTx, ids []string) ([]*CompetitionRow, error) {
-// 	var c []*CompetitionRow
-// 	if err := tenantDB.SelectContext(ctx, &c, "SELECT * FROM competition WHERE id IN (?)", ids); err != nil {
-// 		return nil, fmt.Errorf("error Select competition: id=(%v), %w", ids, err)
-// 	}
-// 	return c, nil
-// }
-
 type PlayerScoreRow struct {
 	TenantID      int64  `db:"tenant_id"`
 	ID            string `db:"id"`
@@ -689,7 +681,6 @@ func tenantsBillingHandler(c echo.Context) error {
 	//   を合計したものを
 	// テナントの課金とする
 	ts := []TenantRow{}
-	// TODO 効果? 全権取る必要はない。beforeIDよりも小さいものだけでよき
 	if err := adminDB.SelectContext(
 		ctx,
 		&ts,
@@ -703,11 +694,7 @@ func tenantsBillingHandler(c echo.Context) error {
 	tenantBillingsAsMap := make(map[string]TenantWithBilling)
 	tenantBillingsAsMapLocker := sync.Mutex{}
 	wg := errgroup.Group{}
-	// TODO 効果3 並列処理化する
 	for _, t := range ts {
-		// if beforeID != 0 && beforeID <= t.ID {
-		// 	continue
-		// }
 		tenantBillingsAsMapSortedKeys = append(tenantBillingsAsMapSortedKeys, strconv.FormatInt(t.ID, 10))
 		tt := t
 		wg.Go(func() error {
@@ -764,9 +751,6 @@ func tenantsBillingHandler(c echo.Context) error {
 				return nil
 			}(&tt)
 		})
-		// if i >= 10 {
-		// 	break
-		// }
 	}
 	if err := wg.Wait(); err != nil {
 		return err
