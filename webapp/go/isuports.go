@@ -177,6 +177,50 @@ func bulkDispenseIDs(ctx context.Context, n int) ([]string, error) {
 	return nil, lastErr
 }
 
+func bulkDispenseIDsV2(ctx context.Context, n int) ([]string, error) {
+	var id int64
+	var lastErr error
+
+	for i := 0; i < 100; i++ {
+		tx, err := adminDB.Begin()
+		if err != nil {
+			return nil, fmt.Errorf("adminDB.Begin is failed: %w", err)
+		}
+
+		row := tx.QueryRowContext(ctx, "SELECT id FROM id_generator WHERE stub = ?", "a")
+		if err := row.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan is failed: %w", err)
+		}
+
+		if _, err := tx.ExecContext(ctx, "update id_generator set id=id+? where stub = ?", n, "a"); err != nil {
+			if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
+				lastErr = fmt.Errorf("error update id_generator: %w", err)
+				if err := tx.Rollback(); err != nil {
+					return nil, fmt.Errorf("rollback is failed: %w", err)
+				}
+				continue
+			}
+			return nil, fmt.Errorf("error update id_generator: %w", err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("error commit: %w", err)
+		}
+		break
+	}
+	if id != 0 {
+		ids := []string{}
+		for i := 0; i < n; i++ {
+			ids = append(
+				ids,
+				fmt.Sprintf("%x", id+int64(i)),
+			)
+		}
+		return ids, nil
+	}
+	return nil, lastErr
+}
+
 // 全APIにCache-Control: privateを設定する
 func SetCacheControlPrivate(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -900,9 +944,9 @@ func playersAddHandler(c echo.Context) error {
 		UpdatedAt      int64  `db:"updated_at"`
 	}
 	willInsertData := make([]WillInsertData, 0, len(displayNames))
-	ids, err := bulkDispenseIDs(ctx, len(displayNames))
+	ids, err := bulkDispenseIDsV2(ctx, len(displayNames))
 	if err != nil {
-		return fmt.Errorf("error dispenseID: %w", err)
+		return fmt.Errorf("failed to bulkDispenseIDs: %w", err)
 	}
 	for i, displayName := range displayNames {
 		willInsertData = append(willInsertData, WillInsertData{
@@ -1228,9 +1272,9 @@ func competitionScoreHandler(c echo.Context) error {
 		})
 	}
 
-	ids, err := bulkDispenseIDs(ctx, len(playerScoreRows))
+	ids, err := bulkDispenseIDsV2(ctx, len(playerScoreRows))
 	if err != nil {
-		return fmt.Errorf("error bulkDispenseIDs is failed: %w", err)
+		return fmt.Errorf("error bulkDispenseIDsV2 is failed: %w", err)
 	}
 	for i := range playerScoreRows {
 		playerScoreRows[i].ID = ids[i]
