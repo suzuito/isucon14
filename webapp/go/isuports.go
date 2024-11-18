@@ -525,6 +525,14 @@ func retrieveCompetition(ctx context.Context, tenantDB dbOrTx, id string) (*Comp
 	return &c, nil
 }
 
+func retrieveCompetitions(ctx context.Context, tenantDB *sqlx.DB, ids []string) ([]*CompetitionRow, error) {
+	var c []*CompetitionRow
+	if err := tenantDB.SelectContext(ctx, &c, "SELECT * FROM competition WHERE id IN (?)", ids); err != nil {
+		return nil, fmt.Errorf("error Select competition: id=%v, %w", ids, err)
+	}
+	return c, nil
+}
+
 type PlayerScoreRow struct {
 	TenantID      int64  `db:"tenant_id"`
 	ID            string `db:"id"`
@@ -1445,6 +1453,10 @@ func playerHandler(c echo.Context) error {
 	); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("error Select competition: %w", err)
 	}
+	compsMap := map[string]CompetitionRow{}
+	for _, v := range cs {
+		compsMap[v.ID] = v
+	}
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
 	// fl, err := flockByTenantID(ctx, v.tenantID)
@@ -1475,10 +1487,11 @@ func playerHandler(c echo.Context) error {
 
 	psds := make([]PlayerScoreDetail, 0, len(pss))
 	for _, ps := range pss {
-		comp, err := retrieveCompetition(ctx, tenantDB, ps.CompetitionID)
-		if err != nil {
-			return fmt.Errorf("error retrieveCompetition: %w", err)
-		}
+		// comp, err := retrieveCompetition(ctx, tenantDB, ps.CompetitionID)
+		// if err != nil {
+		// 	return fmt.Errorf("error retrieveCompetition: %w", err)
+		// }
+		comp := compsMap[ps.CompetitionID]
 		psds = append(psds, PlayerScoreDetail{
 			CompetitionTitle: comp.Title,
 			Score:            ps.Score,
