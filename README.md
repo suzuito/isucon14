@@ -29,7 +29,6 @@ ansible isu_g1 -m ping -i inventory.ini
 
 ```bash
 # deploy app(source code, nginx, mysql settings) for isu_g1
-cd webapp/go/ && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o a.out cmd/isuports/*.go && cd - && \
 ansible-playbook -i inventory.ini playbook.isu_g1.deploy.yaml && \
 ansible-playbook -i inventory.ini playbook.isu_g1.restart.yaml
 # metrics
