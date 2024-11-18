@@ -76,6 +76,7 @@ func connectAdminDB() (*sqlx.DB, error) {
 	config.DBName = getEnv("ISUCON_DB_NAME", "isuports")
 	config.ParseTime = true
 	dsn := config.FormatDSN()
+	// TODO remove trace infos
 	// return sqlx.Open("mysql", dsn)
 	return otelsqlx.Open("mysql", dsn)
 }
@@ -89,6 +90,7 @@ func tenantDBPath(id int64) string {
 // テナントDBに接続する
 func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	p := tenantDBPath(id)
+	// TODO remove trace infos
 	// db, err := sqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
 	db, err := otelsqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
 	if err != nil {
@@ -248,6 +250,7 @@ func Run() {
 	e.Debug = true
 	e.Logger.SetLevel(log.DEBUG)
 
+	// TODO remove trace infos
 	e.Use(otelecho.Middleware("hoge"))
 
 	var (
