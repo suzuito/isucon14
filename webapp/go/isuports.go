@@ -134,6 +134,49 @@ func dispenseID(ctx context.Context) (string, error) {
 	return "", lastErr
 }
 
+type IDGeneratorRow struct {
+	Stub string `db:"stub"`
+}
+
+// システム全体で一意なIDを生成する(bulk version)
+func bulkDispenseIDs(ctx context.Context, n int) ([]string, error) {
+	var id int64
+	var lastErr error
+
+	rows := []IDGeneratorRow{}
+	for i := 0; i < n; i++ {
+		rows = append(rows, IDGeneratorRow{Stub: "a"})
+	}
+
+	for i := 0; i < 100; i++ {
+		var ret sql.Result
+		ret, err := adminDB.NamedExecContext(ctx, "REPLACE INTO id_generator (stub) VALUES (:stub);", rows)
+		if err != nil {
+			if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
+				lastErr = fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+				continue
+			}
+			return nil, fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+		}
+		id, err = ret.LastInsertId()
+		if err != nil {
+			return nil, fmt.Errorf("error ret.LastInsertId: %w", err)
+		}
+		break
+	}
+	if id != 0 {
+		ids := []string{}
+		for i := 0; i < n; i++ {
+			ids = append(
+				ids,
+				fmt.Sprintf("%x", id-int64(i)),
+			)
+		}
+		return ids, nil
+	}
+	return nil, lastErr
+}
+
 // 全APIにCache-Control: privateを設定する
 func SetCacheControlPrivate(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -826,7 +869,7 @@ type PlayersAddHandlerResult struct {
 // GET /api/organizer/players/add
 // テナントに参加者を追加する
 func playersAddHandler(c echo.Context) error {
-	ctx := context.Background()
+	ctx := c.Request().Context()
 	v, err := parseViewer(c)
 	if err != nil {
 		return fmt.Errorf("error parseViewer: %w", err)
@@ -847,33 +890,71 @@ func playersAddHandler(c echo.Context) error {
 	displayNames := params["display_name[]"]
 
 	pds := make([]PlayerDetail, 0, len(displayNames))
-	for _, displayName := range displayNames {
-		id, err := dispenseID(ctx)
-		if err != nil {
-			return fmt.Errorf("error dispenseID: %w", err)
-		}
-
-		now := time.Now().Unix()
-		if _, err := tenantDB.ExecContext(
-			ctx,
-			"INSERT INTO player (id, tenant_id, display_name, is_disqualified, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-			id, v.tenantID, displayName, false, now, now,
-		); err != nil {
-			return fmt.Errorf(
-				"error Insert player at tenantDB: id=%s, displayName=%s, isDisqualified=%t, createdAt=%d, updatedAt=%d, %w",
-				id, displayName, false, now, now, err,
-			)
-		}
-		p, err := retrievePlayer(ctx, tenantDB, id)
-		if err != nil {
-			return fmt.Errorf("error retrievePlayer: %w", err)
-		}
+	now := time.Now()
+	type WillInsertData struct {
+		ID             string `db:"id"`
+		TenantID       int64  `db:"tenant_id"`
+		DisplayName    string `db:"display_name"`
+		IsDisqualified bool   `db:"is_disqualified"`
+		CreatedAt      int64  `db:"created_at"`
+		UpdatedAt      int64  `db:"updated_at"`
+	}
+	willInsertData := make([]WillInsertData, 0, len(displayNames))
+	ids, err := bulkDispenseIDs(ctx, len(displayNames))
+	if err != nil {
+		return fmt.Errorf("error dispenseID: %w", err)
+	}
+	for i, displayName := range displayNames {
+		willInsertData = append(willInsertData, WillInsertData{
+			ID:             ids[i],
+			TenantID:       v.tenantID,
+			DisplayName:    displayName,
+			IsDisqualified: false,
+			CreatedAt:      now.Unix(),
+			UpdatedAt:      now.Unix(),
+		})
 		pds = append(pds, PlayerDetail{
-			ID:             p.ID,
-			DisplayName:    p.DisplayName,
-			IsDisqualified: p.IsDisqualified,
+			ID:             ids[i],
+			IsDisqualified: false,
+			DisplayName:    displayName,
 		})
 	}
+	if _, err := tenantDB.NamedExecContext(
+		ctx,
+		"INSERT INTO player (id, tenant_id, display_name, is_disqualified, created_at, updated_at) VALUES (:id, :tenant_id, :display_name, :is_disqualified, :created_at, :updated_at)",
+		willInsertData,
+	); err != nil {
+		return fmt.Errorf("tenantDB.NamedExecContext is failed: %w", err)
+	}
+	/*
+		for _, displayName := range displayNames {
+			id, err := dispenseID(ctx)
+			if err != nil {
+				return fmt.Errorf("error dispenseID: %w", err)
+			}
+
+			now := time.Now().Unix()
+			if _, err := tenantDB.ExecContext(
+				ctx,
+				"INSERT INTO player (id, tenant_id, display_name, is_disqualified, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+				id, v.tenantID, displayName, false, now, now,
+			); err != nil {
+				return fmt.Errorf(
+					"error Insert player at tenantDB: id=%s, displayName=%s, isDisqualified=%t, createdAt=%d, updatedAt=%d, %w",
+					id, displayName, false, now, now, err,
+				)
+			}
+			p, err := retrievePlayer(ctx, tenantDB, id)
+			if err != nil {
+				return fmt.Errorf("error retrievePlayer: %w", err)
+			}
+			pds = append(pds, PlayerDetail{
+				ID:             p.ID,
+				DisplayName:    p.DisplayName,
+				IsDisqualified: p.IsDisqualified,
+			})
+		}
+	*/
 
 	res := PlayersAddHandlerResult{
 		Players: pds,
