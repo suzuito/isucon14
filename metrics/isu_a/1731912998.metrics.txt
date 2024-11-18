@@ -1,0 +1,25 @@
+06:55:50.267049 SCORE: 5172 (+5172 0(0%))
+[ADMIN] 06:55:50.267158 ScenarioCount: map[bench.ScenarioTag]string{
+  "AdminBilling":            "count: 1 (error: 0)",
+  "AdminBillingValidate":    "count: 4 (error: 0)",
+  "OrganizerNewTenant":      "count: 1 (error: 0)",
+  "OrganizerPeacefulTenant": "count: 0 (error: 0)",
+  "OrganizerPopularTenant":  "count: 1 (error: 0)",
+  "Player":                  "count: 136 (error: 0)",
+  "PlayerValidate":          "count: 8 (error: 0)",
+  "TenantBillingValidate":   "count: 1 (error: 0)",
+}
+[ADMIN] 06:55:50.267195 score.ScoreTable{
+  "GET /api/admin/tenants/billing":                         16,
+  "GET /api/organizer/billing":                             24,
+  "GET /api/organizer/players/list":                        34,
+  "GET /api/player/competition/:competition_id/ranking":    1152,
+  "GET /api/player/competitions":                           228,
+  "GET /api/player/player/:player_name":                    2194,
+  "POST /api/admin/tenants/add":                            2,
+  "POST /api/organizer/competition/:competition_id/finish": 34,
+  "POST /api/organizer/competition/:competition_id/score":  44,
+  "POST /api/organizer/competitions/add":                   39,
+  "POST /api/organizer/player/:player_name/disqualified":   8,
+  "POST /api/organizer/players/add":                        11,
+}
