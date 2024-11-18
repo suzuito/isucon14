@@ -1,0 +1,51 @@
+
+# 3.2s user time, 20ms system time, 29.38M rss, 32.43M vsz
+# Current date: Mon Nov 18 06:10:30 2024
+# Hostname: ip-172-31-43-46
+# Files: /var/log/mysql/mysql-slow.log
+# Overall: 50.02k total, 18 unique, 202.49 QPS, 4.83x concurrency ________
+# Time range: 2024-11-18T06:05:36 to 2024-11-18T06:09:43
+# Attribute          total     min     max     avg     95%  stddev  median
+# ============     ======= ======= ======= ======= ======= ======= =======
+# Exec time          1194s     1us      9s    24ms   122ms   203ms    76us
+# Lock time          128ms       0    21ms     2us     1us   149us       0
+# Rows sent          1.03M       0   4.88k   21.67  124.25  158.70       0
+# Rows examine      25.73M       0   3.08M  539.39   1.96k  24.14k       0
+# Query size         2.71M       6     164   56.82  136.99   43.44   31.70
+
+# Profile
+# Rank Query ID                      Response time   Calls R/Call V/M   It
+# ==== ============================= =============== ===== ====== ===== ==
+#    1 0x676347F321DB8BC7FCB05D49... 1163.2907 97.5%  8932 0.1302  1.65 SELECT visit_history
+# MISC 0xMISC                          30.3755  2.5% 41083 0.0007   0.0 <17 ITEMS>
+
+# Query 1: 36.61 QPS, 4.77x concurrency, ID 0x676347F321DB8BC7FCB05D4948FC2248 at byte 7255973
+# This item is included in the report because it matches --limit.
+# Scores: V/M = 1.65
+# Time range: 2024-11-18T06:05:39 to 2024-11-18T06:09:43
+# Attribute    pct   total     min     max     avg     95%  stddev  median
+# ============ === ======= ======= ======= ======= ======= ======= =======
+# Count         17    8932
+# Exec time     97   1163s   196us      9s   130ms   266ms   463ms    68ms
+# Lock time     15    20ms     1us     2ms     2us     1us    27us     1us
+# Rows sent     99   1.03M       0   4.88k  120.62  183.58  360.16   80.10
+# Rows examine  64  16.49M       0  78.96k   1.89k   2.89k   5.66k   1.33k
+# Query size    44   1.22M     141     144  142.95  136.99    0.68  136.99
+# String:
+# Databases    isuports
+# Hosts        localhost
+# Users        isucon
+# Query_time distribution
+#   1us
+#  10us
+# 100us  ##
+#   1ms  #########
+#  10ms  ################################################################
+# 100ms  ###############################################
+#    1s  #
+#  10s+
+# Tables
+#    SHOW TABLE STATUS FROM `isuports` LIKE 'visit_history'\G
+#    SHOW CREATE TABLE `isuports`.`visit_history`\G
+# EXPLAIN /*!50100 PARTITIONS*/
+SELECT player_id, MIN(created_at) AS min_created_at FROM visit_history WHERE tenant_id = 1 AND competition_id = '4447b4e1' GROUP BY player_id\G

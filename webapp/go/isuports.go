@@ -664,6 +664,19 @@ type VisitHistorySummaryRow struct {
 
 // 大会ごとの課金レポートを計算する
 func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID int64, comp *CompetitionRow) (*BillingReport, error) {
+	tracer := otel.Tracer("echo-server")
+	ctx, span := tracer.Start(ctx, "foo002")
+	span.SetAttributes(
+		attribute.KeyValue{
+			Key:   "tenant_id",
+			Value: attribute.Int64Value(tenantID),
+		},
+		attribute.KeyValue{
+			Key:   "comp_id",
+			Value: attribute.StringValue(comp.ID),
+		},
+	)
+	defer span.End()
 	// ランキングにアクセスした参加者のIDを取得する
 	vhs := []VisitHistorySummaryRow{}
 	if err := adminDB.SelectContext(
@@ -792,11 +805,11 @@ func tenantsBillingHandler(c echo.Context) error {
 	tenantBillingsAsMapSortedKeys := []string{}
 	tenantBillingsAsMap := make(map[string]TenantWithBilling)
 	tenantBillingsAsMapLocker := sync.Mutex{}
-	wg := errgroup.Group{}
+	wg1 := errgroup.Group{}
 	for _, t := range ts {
 		tenantBillingsAsMapSortedKeys = append(tenantBillingsAsMapSortedKeys, strconv.FormatInt(t.ID, 10))
 		tt := t
-		wg.Go(func() error {
+		wg1.Go(func() error {
 			return func(t *TenantRow) error {
 				// TOOD remove tracer
 				tracer := otel.Tracer("echo-server")
@@ -836,13 +849,26 @@ func tenantsBillingHandler(c echo.Context) error {
 				); err != nil {
 					return fmt.Errorf("failed to Select competition: %w", err)
 				}
+
+				wg2 := errgroup.Group{}
+				wg2Lock := sync.Mutex{}
 				for _, comp := range cs {
-					report, err := billingReportByCompetition(ctx, tenantDB, t.ID, &comp)
-					if err != nil {
-						return fmt.Errorf("failed to billingReportByCompetition: %w", err)
-					}
-					tb.BillingYen += report.BillingYen
+					comp2 := comp
+					wg2.Go(func() error {
+						report, err := billingReportByCompetition(ctx, tenantDB, t.ID, &comp2)
+						if err != nil {
+							return fmt.Errorf("failed to billingReportByCompetition: %w", err)
+						}
+						wg2Lock.Lock()
+						tb.BillingYen += report.BillingYen
+						wg2Lock.Unlock()
+						return nil
+					})
 				}
+				if err := wg2.Wait(); err != nil {
+					return fmt.Errorf("wg2.Wait is failed: %w", err)
+				}
+
 				// tenantBillings = append(tenantBillings, tb)
 				tenantBillingsAsMapLocker.Lock()
 				defer tenantBillingsAsMapLocker.Unlock()
@@ -851,7 +877,7 @@ func tenantsBillingHandler(c echo.Context) error {
 			}(&tt)
 		})
 	}
-	if err := wg.Wait(); err != nil {
+	if err := wg1.Wait(); err != nil {
 		return err
 	}
 	for _, k := range tenantBillingsAsMapSortedKeys {
