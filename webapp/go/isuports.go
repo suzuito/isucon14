@@ -39,8 +39,8 @@ import (
 )
 
 const (
-	tenantDBSchemaFilePath = "../sql/tenant/10_schema.sql"
-	initializeScript       = "../sql/init.sh"
+	tenantDBSchemaFilePath = "/home/isucon/webapp/sql/tenant/10_schema.sql"
+	initializeScript       = "/home/isucon/webapp/sql/init.sh"
 	cookieName             = "isuports_session"
 
 	RoleAdmin     = "admin"
@@ -83,7 +83,7 @@ func connectAdminDB() (*sqlx.DB, error) {
 
 // テナントDBのパスを返す
 func tenantDBPath(id int64) string {
-	tenantDBDir := getEnv("ISUCON_TENANT_DB_DIR", "../tenant_db")
+	tenantDBDir := getEnv("ISUCON_TENANT_DB_DIR", "/home/isucon/webapp/tenant_db")
 	return filepath.Join(tenantDBDir, fmt.Sprintf("%d.db", id))
 }
 
@@ -358,7 +358,7 @@ func parseViewer(c echo.Context) (*Viewer, error) {
 	}
 	tokenStr := cookie.Value
 
-	keyFilename := getEnv("ISUCON_JWT_KEY_FILE", "../public.pem")
+	keyFilename := getEnv("ISUCON_JWT_KEY_FILE", "/home/isucon/webapp/public.pem")
 	keysrc, err := os.ReadFile(keyFilename)
 	if err != nil {
 		return nil, fmt.Errorf("error os.ReadFile: keyFilename=%s: %w", keyFilename, err)
@@ -539,7 +539,7 @@ type PlayerScoreRow struct {
 
 // 排他ロックのためのファイル名を生成する
 func lockFilePath(id int64) string {
-	tenantDBDir := getEnv("ISUCON_TENANT_DB_DIR", "../tenant_db")
+	tenantDBDir := getEnv("ISUCON_TENANT_DB_DIR", "/home/isucon/webapp/tenant_db")
 	return filepath.Join(tenantDBDir, fmt.Sprintf("%d.lock", id))
 }
 
