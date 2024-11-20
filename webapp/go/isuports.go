@@ -29,6 +29,8 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/sync/errgroup"
@@ -73,8 +75,8 @@ func connectAdminDB() (*sqlx.DB, error) {
 	config.ParseTime = true
 	dsn := config.FormatDSN()
 	// TODO trace infos
-	return sqlx.Open("mysql", dsn)
-	// return otelsqlx.Open("mysql", dsn)
+	// return sqlx.Open("mysql", dsn)
+	return otelsqlx.Open("mysql", dsn)
 }
 
 // テナントDBのパスを返す
@@ -87,8 +89,8 @@ func tenantDBPath(id int64) string {
 func connectToTenantDB(id int64) (*sqlx.DB, error) {
 	p := tenantDBPath(id)
 	// TODO trace infos
-	db, err := sqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
-	// db, err := otelsqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
+	// db, err := sqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
+	db, err := otelsqlx.Open(sqliteDriverName, fmt.Sprintf("file:%s?mode=rw", p))
 	if err != nil {
 		return nil, fmt.Errorf("failed to open tenant DB: %w", err)
 	}
@@ -247,7 +249,7 @@ func Run() {
 	e.Logger.SetLevel(log.DEBUG)
 
 	// TODO trace infos
-	// e.Use(otelecho.Middleware("hoge"))
+	e.Use(otelecho.Middleware("hoge"))
 
 	var (
 		sqlLogger io.Closer

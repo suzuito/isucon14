@@ -11,7 +11,7 @@
       state: stopped
       name: nginx
   - ansible.builtin.shell:
-      cmd: rm /var/log/nginx/access.log
+      cmd: rm -f /var/log/nginx/access.log
   - ansible.builtin.systemd_service:
       state: started
       name: nginx
@@ -20,7 +20,7 @@
       state: stopped
       name: mysql
   - ansible.builtin.shell:
-      cmd: rm /var/log/mysql/mysql-slow.log
+      cmd: rm -f /var/log/mysql/mysql-slow.log
   - ansible.builtin.systemd_service:
       state: restarted
       name: mysql
