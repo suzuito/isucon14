@@ -1,17 +1,6 @@
 - name: deploy
   hosts: isu_g1
   tasks:
-  # - name: Ping my hosts
-  #   ansible.builtin.ping:
-  # - name: Print message
-  #   ansible.builtin.debug:
-  #     msg: Hello world
-  # - ansible.builtin.copy:
-  #     force: true
-  #     src: ./webapp/
-  #     dest: /tmp/webapp/
-  # - ansible.builtin.shell:
-  #     cmd: mv /tmp/webapp/ ~/webapp/
   - name: copy app
     # ansible.builtin.copy は遅いので synchronize 使う
     ansible.builtin.synchronize:

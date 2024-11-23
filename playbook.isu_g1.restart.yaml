@@ -22,5 +22,5 @@
   - ansible.builtin.shell:
       cmd: rm -f /var/log/mysql/mysql-slow.log
   - ansible.builtin.systemd_service:
-      state: restarted
+      state: started
       name: mysql
