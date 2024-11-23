@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/profiler"
 	texporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -32,8 +33,11 @@ import (
 	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/sync/errgroup"
+
+	"net/http/pprof"
 )
 
 const (
@@ -233,6 +237,24 @@ func SetCacheControlPrivate(next echo.HandlerFunc) echo.HandlerFunc {
 func Run() {
 	ctx := context.Background()
 
+	// profiler入れてみたけどあまり使えない
+	cfg := profiler.Config{
+		Service:        "myservice",
+		ServiceVersion: "1.0.0",
+		ProjectID:      "isucon14",
+
+		// For OpenCensus users:
+		// To see Profiler agent spans in APM backend,
+		// set EnableOCTelemetry to true
+		// EnableOCTelemetry: true,
+	}
+
+	// Profiler initialization, best done as early as possible.
+	if err := profiler.Start(cfg); err != nil {
+		// TODO: Handle error.
+		panic(fmt.Errorf("cannot profiler.Start: %w", err))
+	}
+
 	exporter, err1 := texporter.New(texporter.WithProjectID("isucon14"))
 	if err1 != nil {
 		panic(fmt.Errorf("cannot texporter.New: %w", err1))
@@ -240,6 +262,7 @@ func Run() {
 
 	tp := trace.NewTracerProvider(
 		trace.WithBatcher(exporter),
+		trace.WithSampler(trace.AlwaysSample()),
 	)
 	otel.SetTracerProvider(tp)
 	defer tp.Shutdown(ctx)
@@ -295,6 +318,14 @@ func Run() {
 
 	// ベンチマーカー向けAPI
 	e.POST("/initialize", initializeHandler)
+
+	// TODO 最後に消す
+	pprofGroup := e.Group("/debug/pprof")
+	pprofGroup.Any("/cmdline", echo.WrapHandler(http.HandlerFunc(pprof.Cmdline)))
+	pprofGroup.Any("/profile", echo.WrapHandler(http.HandlerFunc(pprof.Profile)))
+	pprofGroup.Any("/symbol", echo.WrapHandler(http.HandlerFunc(pprof.Symbol)))
+	pprofGroup.Any("/trace", echo.WrapHandler(http.HandlerFunc(pprof.Trace)))
+	pprofGroup.Any("/*", echo.WrapHandler(http.HandlerFunc(pprof.Index)))
 
 	e.HTTPErrorHandler = errorResponseHandler
 
@@ -671,7 +702,22 @@ type VisitHistorySummaryRow struct {
 
 // 大会ごとの課金レポートを計算する
 func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID int64, comp *CompetitionRow) (*BillingReport, error) {
+	tracer := otel.Tracer("echo-server")
+	ctx, span1 := tracer.Start(ctx, "foo002")
+	span1.SetAttributes(
+		attribute.KeyValue{
+			Key:   "tenant_id",
+			Value: attribute.Int64Value(tenantID),
+		},
+		attribute.KeyValue{
+			Key:   "competition_id",
+			Value: attribute.StringValue(comp.ID),
+		},
+	)
+	defer span1.End()
+
 	// ランキングにアクセスした参加者のIDを取得する
+	ctx, span2 := tracer.Start(ctx, "foo003")
 	vhs := []VisitHistorySummaryRow{}
 	if err := adminDB.SelectContext(
 		ctx,
@@ -680,8 +726,11 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 		tenantID,
 		comp.ID,
 	); err != nil && err != sql.ErrNoRows {
+		span2.End()
 		return nil, fmt.Errorf("error Select visit_history: tenantID=%d, competitionID=%s, %w", tenantID, comp.ID, err)
 	}
+	span2.End()
+	ctx, span3 := tracer.Start(ctx, "foo004")
 	billingMap := map[string]string{}
 	for _, vh := range vhs {
 		// competition.finished_atよりもあとの場合は、終了後に訪問したとみなして大会開催内アクセス済みとみなさない
@@ -690,6 +739,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 		}
 		billingMap[vh.PlayerID] = "visitor"
 	}
+	span3.End()
 
 	// player_scoreを読んでいるときに更新が走ると不整合が起こるのでロックを取得する
 	// fl, err := flockByTenantID(ctx, tenantID)
@@ -699,6 +749,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	// defer fl.Close()
 
 	// スコアを登録した参加者のIDを取得する
+	ctx, span4 := tracer.Start(ctx, "foo005")
 	scoredPlayerIDs := []string{}
 	if err := tenantDB.SelectContext(
 		ctx,
@@ -706,14 +757,17 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 		"SELECT DISTINCT(player_id) FROM player_score WHERE tenant_id = ? AND competition_id = ?",
 		tenantID, comp.ID,
 	); err != nil && err != sql.ErrNoRows {
+		span4.End()
 		return nil, fmt.Errorf("error Select count player_score: tenantID=%d, competitionID=%s, %w", tenantID, comp.ID, err)
 	}
 	for _, pid := range scoredPlayerIDs {
 		// スコアが登録されている参加者
 		billingMap[pid] = "player"
 	}
+	span4.End()
 
 	// 大会が終了している場合のみ請求金額が確定するので計算する
+	_, span5 := tracer.Start(ctx, "foo006")
 	var playerCount, visitorCount int64
 	if comp.FinishedAt.Valid {
 		for _, category := range billingMap {
@@ -725,6 +779,8 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 			}
 		}
 	}
+	span5.End()
+
 	return &BillingReport{
 		CompetitionID:     comp.ID,
 		CompetitionTitle:  comp.Title,
@@ -806,23 +862,23 @@ func tenantsBillingHandler(c echo.Context) error {
 		wg.Go(func() error {
 			return func(t *TenantRow) error {
 				// TOOD remove tracer
-				// tracer := otel.Tracer("echo-server")
-				// ctx, span := tracer.Start(ctx, "foo001")
-				// span.SetAttributes(
-				// 	attribute.KeyValue{
-				// 		Key:   "tenant_id",
-				// 		Value: attribute.Int64Value(t.ID),
-				// 	},
-				// 	attribute.KeyValue{
-				// 		Key:   "tenant_name",
-				// 		Value: attribute.StringValue(t.Name),
-				// 	},
-				// 	attribute.KeyValue{
-				// 		Key:   "tenant_display_name",
-				// 		Value: attribute.StringValue(t.DisplayName),
-				// 	},
-				// )
-				// defer span.End()
+				tracer := otel.Tracer("echo-server")
+				ctx1, span1 := tracer.Start(ctx, "foo001")
+				span1.SetAttributes(
+					attribute.KeyValue{
+						Key:   "tenant_id",
+						Value: attribute.Int64Value(t.ID),
+					},
+					attribute.KeyValue{
+						Key:   "tenant_name",
+						Value: attribute.StringValue(t.Name),
+					},
+					attribute.KeyValue{
+						Key:   "tenant_display_name",
+						Value: attribute.StringValue(t.DisplayName),
+					},
+				)
+				defer span1.End()
 
 				tb := TenantWithBilling{
 					ID:          strconv.FormatInt(t.ID, 10),
@@ -836,7 +892,7 @@ func tenantsBillingHandler(c echo.Context) error {
 				defer tenantDB.Close()
 				cs := []CompetitionRow{}
 				if err := tenantDB.SelectContext(
-					ctx,
+					ctx1,
 					&cs,
 					"SELECT * FROM competition WHERE tenant_id=?",
 					t.ID,
@@ -844,7 +900,7 @@ func tenantsBillingHandler(c echo.Context) error {
 					return fmt.Errorf("failed to Select competition: %w", err)
 				}
 				for _, comp := range cs {
-					report, err := billingReportByCompetition(ctx, tenantDB, t.ID, &comp)
+					report, err := billingReportByCompetition(ctx1, tenantDB, t.ID, &comp)
 					if err != nil {
 						return fmt.Errorf("failed to billingReportByCompetition: %w", err)
 					}
