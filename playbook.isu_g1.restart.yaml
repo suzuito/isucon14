@@ -2,10 +2,9 @@
   hosts: isu_g1
   become: yes # sudo で実行する
   tasks:
-  - name: restart app
-    ansible.builtin.systemd_service:
+  - ansible.builtin.systemd_service:
       state: restarted
-      name: isuports
+      name: isuride-go
   # nginx
   - ansible.builtin.systemd_service:
       state: stopped
