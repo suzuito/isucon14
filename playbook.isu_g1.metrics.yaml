@@ -5,7 +5,7 @@
   - ansible.builtin.shell:
       cmd: pt-query-digest /var/log/mysql/mysql-slow.log > {{dt}}.slowquery.txt
   - ansible.builtin.shell:
-      cmd: cat /var/log/nginx/access.log | alp ltsv --output='all' -m '/api/player/player/[0-9a-z]+,/api/player/competition/[0-9a-z]+/ranking,/api/organizer/competition/[0-9a-z]+/score,/api/organizer/competition/[0-9a-z]+/finish,/api/organizer/player/[0-9a-z]+/disqualified' --sort='avg' > {{dt}}.api.txt
+      cmd: cat /var/log/nginx/access.log | alp ltsv --output='all' -m '/assets/.+,/images/.+,/api/chair/rides/[0-9A-Z]+/status,/api/app/rides/[0-9A-Z]+/evaluation,/api/player/competition/[0-9a-z]+/ranking,/api/organizer/competition/[0-9a-z]+/score,/api/organizer/competition/[0-9a-z]+/finish,/api/organizer/player/[0-9a-z]+/disqualified' --sort='avg' > {{dt}}.api.txt
   - ansible.builtin.fetch:
       src: "{{dt}}.slowquery.txt"
       dest: metrics/
