@@ -29,6 +29,6 @@ ansible isu_g1 -m ping -i inventory.ini
 
 ```bash
 # deploy app(source code, nginx, mysql settings) for isu_g1
-ansible-playbook -i inventory.deploy.ini playbook.isu_g1.deploy.yaml && ansible-playbook -i inventory.deploy.ini playbook.isu_g1.restart.yaml
-ansible-playbook -i inventory.metrics.ini --extra-vars "dt=$(date +%s)" playbook.isu_g1.metrics.yaml
+ansible-playbook -i inventory.deploy.ini playbook.deploy.yaml && ansible-playbook -i inventory.deploy.ini playbook.restart.yaml
+ansible-playbook -i inventory.metrics.ini --extra-vars "dt=$(date +%s)" playbook.metrics.yaml
 ```

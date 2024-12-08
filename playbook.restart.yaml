@@ -16,6 +16,15 @@
   - ansible.builtin.systemd_service:
       state: started
       name: nginx
+  - ansible.builtin.systemd_service:
+      state: started
+      name: isuride-go
+- name: restart as sudo
+  hosts: isu_g2
+  become: yes # sudo で実行する
+  tasks:
+  - ansible.builtin.shell:
+      cmd: /opt/isucon-env-checker/envcheck
   # mysql
   - ansible.builtin.systemd_service:
       state: stopped
@@ -25,6 +34,3 @@
   - ansible.builtin.systemd_service:
       state: started
       name: mysql
-  - ansible.builtin.systemd_service:
-      state: started
-      name: isuride-go

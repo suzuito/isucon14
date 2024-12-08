@@ -1,5 +1,5 @@
 - name: deploy
-  hosts: isu_g1
+  hosts: isu_g1,isu_g2
   tasks:
   - name: copy env
     # ansible.builtin.copy は遅いので synchronize 使う

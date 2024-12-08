@@ -1,5 +1,5 @@
 - name: deploy
-  hosts: isu_g1
+  hosts: isu_g1,isu_g2
   become: yes # sudo で実行する
   tasks:
   - ansible.builtin.shell:
