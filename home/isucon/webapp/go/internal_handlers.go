@@ -22,6 +22,33 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 
 	matched := &Chair{}
 	empty := false
+
+	chairsSorted, err := getChairsSortedByCurrentPosition(ctx, ride.PickupLatitude, ride.PickupLongitude)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+	} else if len(chairsSorted) <= 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	for _, chair := range chairsSorted {
+		if err := db.GetContext(ctx, &empty, "SELECT COUNT(*) = 0 FROM (SELECT COUNT(chair_sent_at) = 6 AS completed FROM ride_statuses WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?) GROUP BY ride_id) is_completed WHERE completed = FALSE", chair.ChairID); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		if empty {
+			matched.ID = chair.ChairID
+			break
+		}
+	}
+	if empty {
+		if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matched.ID, ride.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	for i := 0; i < 10; i++ {
 		if err := db.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
