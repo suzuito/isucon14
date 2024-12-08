@@ -1,25 +1,33 @@
 - name: deploy
   hosts: isu_g1
   tasks:
+  - name: copy env
+    # ansible.builtin.copy は遅いので synchronize 使う
+    ansible.builtin.synchronize:
+      src: ./home/isucon/env.sh
+      dest: /home/isucon/env.sh
   - name: copy app
     # ansible.builtin.copy は遅いので synchronize 使う
     ansible.builtin.synchronize:
-      src: ./webapp/
-      dest: ~/webapp/
+      src: ./home/isucon/webapp/
+      dest: /home/isucon/webapp/
   - name: build
     ansible.builtin.shell:
-      cmd: /home/isucon/go/bin/go build -o a.out -ldflags="-s -w" cmd/isuports/*.go
+      cmd: /home/isucon/local/golang/bin/go build -o isuride *.go
       chdir: /home/isucon/webapp/go
 - name: deploy as sudo
   hosts: isu_g1
   become: yes # sudo で実行する
   tasks:
   - ansible.builtin.synchronize:
-      src: ./systemd/system/isuports.service
-      dest: /etc/systemd/system/isuports.service
+      src: ./etc/systemd/system/isuride-go.service
+      dest: /etc/systemd/system/isuride-go.service
   - ansible.builtin.synchronize:
       src: ./etc/mysql/mysql.conf.d/mysqld.cnf
       dest: /etc/mysql/mysql.conf.d/mysqld.cnf
   - ansible.builtin.synchronize:
       src: ./etc/nginx/nginx.conf
       dest: /etc/nginx/nginx.conf
+  - ansible.builtin.synchronize:
+      src: ./etc/nginx/sites-available/isuride.conf
+      dest: /etc/nginx/sites-available/isuride.conf
