@@ -23,6 +23,9 @@
       src: ./etc/systemd/system/isuride-go.service
       dest: /etc/systemd/system/isuride-go.service
   - ansible.builtin.synchronize:
+      src: ./etc/systemd/system/isuride-matcher.service
+      dest: /etc/systemd/system/isuride-matcher.service
+  - ansible.builtin.synchronize:
       src: ./etc/mysql/mysql.conf.d/mysqld.cnf
       dest: /etc/mysql/mysql.conf.d/mysqld.cnf
   - ansible.builtin.synchronize:
